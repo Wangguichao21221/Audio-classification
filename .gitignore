@@ -1,0 +1,6 @@
+/train
+/test_a
+**.npy
+**.pth
+/__pycache__
+/runs
