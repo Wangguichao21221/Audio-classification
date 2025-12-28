@@ -2,5 +2,5 @@
 /test_a
 **.npy
 **.pth
-/__pycache__
+**/__pycache__
 /runs
