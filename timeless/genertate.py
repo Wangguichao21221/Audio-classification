@@ -28,7 +28,7 @@ def extract_features_for_train(parent_dir, sub_dirs, max_file_per_class=None, fi
                 raise ValueError(f"Unknown category '{category}' from file {fn}")
             y, sr = librosa.load(fn, res_type='kaiser_fast')
             mels = np.mean(librosa.feature.mfcc(y=y, sr=sr, n_mfcc=128).T, axis=0)
-            features.append(mels) (T,128)
+            features.append(mels)
             labels.append(label_dict[category])
     features = np.array(features, dtype=np.float32)  # (N,128)
     labels = np.array(labels, dtype=np.int64)        # (N,)

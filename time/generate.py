@@ -89,9 +89,7 @@ class MFCCDataset(Dataset):
                 raise ValueError(f"Unexpected file name format: {file_name}")
             return data, class_name
 if __name__ == "__main__":
-    out_train_dir = '../train_npy'
-    out_test_dir = '../test_npy'
-    os.makedirs(out_train_dir)
-    os.makedirs(out_test_dir)
-    pre_process_wav_flat(out_train_dir)
-    pre_process_wav(out_test_dir)
+    out_train_dir = './train_npy'
+    out_test_dir = './test_npy'
+    pre_process_wav_flat('../train',out_train_dir)
+    pre_process_wav('../test_a',out_test_dir)

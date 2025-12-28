@@ -36,8 +36,8 @@ def collate_fn(batch):
     return X, y
 
 
-TRAIN_NPY_DIR = "./train_npy_time"
-TEST_NPY_DIR = "./test_a_npy_time"
+TRAIN_NPY_DIR = "./train_npy"
+TEST_NPY_DIR = "./test_npy"
 SUBMIT_CSV_PATH = "./submit_time.csv"
 val_ratio = 0.2 
 # Prepare training dataset

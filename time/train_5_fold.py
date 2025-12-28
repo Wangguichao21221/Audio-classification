@@ -8,8 +8,8 @@ import pandas as pd
 from model import OneDCNN
 from generate import MFCCDataset
 import os
-TRAIN_NPY_DIR = "./train_npy_time"
-TEST_NPY_DIR = "./test_a_npy_time"
+TRAIN_NPY_DIR = "./train_npy"
+TEST_NPY_DIR = "./test_npy"
 SUBMIT_CSV_PATH = "./submit_time.csv"
 
 # Prepare training dataset
@@ -66,7 +66,6 @@ def train_model():
                 total += y_batch.size(0)
 
             train_acc = correct / total
-            print(f"Epoch {epoch} - Train Loss: {train_loss/total:.4f}, Train Acc: {train_acc:.4f}")
 
             # Validation
             model.eval()
@@ -80,7 +79,7 @@ def train_model():
                     val_total += y_val.size(0)
 
             val_acc = val_correct / val_total
-            print(f"Validation Accuracy: {val_acc:.4f}")
+            print(f"Epoch {epoch} - Train Loss: {train_loss/total:.4f}, Train Acc: {train_acc:.4f},Validation Accuracy: {val_acc:.4f}")
 
             if val_acc > best_val_acc:
                 best_val_acc = val_acc
