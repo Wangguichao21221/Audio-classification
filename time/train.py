@@ -10,7 +10,7 @@ from generate import MFCCDataset
 import os
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Subset
-
+import utils
 # 分割 train_dataset 为训练集和验证集
 def split_train_val(dataset, val_ratio=0.1, random_state=42):
     # 提取所有样本的索引和对应标签（后者用于 stratify 分层抽样）
@@ -53,22 +53,28 @@ index_to_label = {i: label for label, i in label_to_index.items()}
 
 
 # Training without K-Fold
-def train_no_kfold(train_loader,val_loader):
+def train_model(train_loader,val_loader,lr = 1e-4,num_epochs = 150):
     test_predictions = np.zeros((len(test_dataset), len(label_to_index)))
     print("\n==== Training ====\n")
 
-    model = OneDCNN(input_shape=(344, 40), num_classes=len(label_to_index))
+    model = OneDCNN(input_shape=(40, 344), num_classes=len(label_to_index))
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.0005)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
 
     best_val_acc = 0.0
-    for epoch in range(1, 150):
+
+    train_loss_per_epoch = []
+    val_loss_per_epoch = []
+    train_acc_per_epoch = []
+    val_acc_per_epoch = []
+    for epoch in range(1, num_epochs):
         model.train()
         train_loss = 0
         correct = 0
         total = 0
 
         for X_batch, y_batch in train_loader:
+            # print(X_batch.shape,y_batch.shape)
             optimizer.zero_grad()
             outputs = model(X_batch)
             loss = criterion(outputs, y_batch)
@@ -81,56 +87,36 @@ def train_no_kfold(train_loader,val_loader):
             total += y_batch.size(0)
 
         train_acc = correct / total
-        print(f"Epoch {epoch} - Train Loss: {train_loss/total:.4f}, Train Acc: {train_acc:.4f}")
 
         # Validation
         model.eval()
         val_correct = 0
         val_total = 0
+        val_loss = 0
         with torch.no_grad():
             for X_val, y_val in val_loader:
                 outputs = model(X_val)
                 _, predicted = outputs.max(1)
                 val_correct += (predicted == y_val).sum().item()
+                loss = criterion(outputs, y_val)
+                val_loss += loss.item() * y_val.size(0)
                 val_total += y_val.size(0)
-
+        val_loss=val_loss/val_total
         val_acc = val_correct / val_total
-        print(f"Validation Accuracy: {val_acc:.4f}")
+        print(f"Epoch {epoch} - Train Loss: {train_loss/total:.4f}, Train Acc: {train_acc:.4f},Val loss: {val_loss:.4f} ,Val Acc: {val_acc:.4f}")
+        train_loss_per_epoch.append(train_loss/total)
+        val_loss_per_epoch.append(val_loss)
+        train_acc_per_epoch.append(train_acc)
+        val_acc_per_epoch.append(val_acc)
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             torch.save(model.state_dict(), "best_model.pth")
     print(f"Training completed. Best Validation Accuracy: {best_val_acc:.4f}")
-
-
-    # Test predictions aggregation
-    test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False)
-
-    # 初始化存储预测结果
-    test_predictions = []  # 用于存储模型预测的标签
-    file_names = []  # 用于存储测试集文件的名称
-
-    # 测试阶段，生成预测标签
-    model.eval()  # 设置模型为评估模式
-    with torch.no_grad():
-        for X_test_batch, file_batch_names in test_loader:
-            # 前向传播以获取预测结果
-            outputs = model(X_test_batch)  # 模型的输出维度: (batch_size, num_classes)
-            preds = torch.argmax(outputs, dim=1).cpu().tolist()  # 获取每个样本的预测类别索引
-
-            # 保存每个 batch 的预测结果和对应文件名
-            test_predictions.extend(preds)
-            file_names.extend(file_batch_names)
-
-    # 将预测类别索引转换为实际标签
-    final_labels = [index_to_label[pred] for pred in test_predictions]
-
-    # 导出预测结果为 CSV 文件
-    submission_df = pd.DataFrame({"name": file_names, "label": final_labels})
-    submission_df.to_csv(SUBMIT_CSV_PATH, index=False)
-
-    print(f"Predictions saved to {SUBMIT_CSV_PATH}")
+    utils.plot_training_metrics_complete(train_loss_per_epoch,val_loss_per_epoch,train_acc_per_epoch,val_acc_per_epoch,'./logs')
+    
 if __name__ == "__main__":
     # Choose one of the two functions below based on your training approach
     # train_model()  # Uncomment this line for K-Fold training
-    train_no_kfold(train_loader,val_loader)  # Uncomment this line for no K-Fold training
+    os.makedirs('./logs',exist_ok=True)
+    train_model(train_loader,val_loader,num_epochs=200,lr = 1e-3)  # Uncomment this line for no K-Fold training

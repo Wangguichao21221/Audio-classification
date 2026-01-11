@@ -6,7 +6,8 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 import numpy as np
 import os
-from model import Conv1DModel,MLP
+from model import Conv1DModel
+import utils
 # 5折交叉验证训练函数
 class AudioDataset(Dataset):
     def __init__(self, features, labels):
@@ -18,14 +19,17 @@ class AudioDataset(Dataset):
     
     def __getitem__(self, idx):
         return self.features[idx], self.labels[idx]
-def train_model(model, train_loader, test_loader, num_epochs=200, device='cuda'):
+def train_model(model, train_loader, test_loader,fold ,num_epochs=200, device='cuda'):
     model.to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters())
     
     best_accuracy = 0.0
     best_model_path = None
-    
+    train_losses_per_epoch = []
+    val_losses_per_epoch = []
+    train_accuracy_per_epoch = []
+    val_accuracy_per_epoch = []
     for epoch in range(num_epochs):
         # 训练阶段
         model.train()
@@ -43,7 +47,7 @@ def train_model(model, train_loader, test_loader, num_epochs=200, device='cuda')
             loss.backward()
             optimizer.step()
             
-            train_loss += loss.item()
+            train_loss += loss.item() *target.size(0)
             _, predicted = torch.max(outputs.data, 1)
             train_total += target.size(0)
             train_correct += (predicted == target).sum().item()
@@ -54,7 +58,7 @@ def train_model(model, train_loader, test_loader, num_epochs=200, device='cuda')
         val_accuracy,val_loss = test_acc(model,device,test_loader)
         
         train_accuracy = 100.0 * train_correct / train_total
-        
+        train_loss == train_loss/train_total
         # 保存最佳模型
         if val_accuracy > best_accuracy:
             best_accuracy = val_accuracy
@@ -72,7 +76,16 @@ def train_model(model, train_loader, test_loader, num_epochs=200, device='cuda')
                   f'Train Acc: {train_accuracy:.2f}%, '
                   f'Val Loss: {val_loss/len(test_loader):.4f}, '
                   f'Val Acc: {val_accuracy:.2f}%')
-    
+        train_accuracy = train_accuracy/100.0
+        val_accuracy = val_accuracy/100.0
+        train_losses_per_epoch.append(train_loss)
+        val_losses_per_epoch.append(val_loss)
+        train_accuracy_per_epoch.append(train_accuracy)
+        val_accuracy_per_epoch.append(val_accuracy)
+    os.makedirs('./logs',exist_ok= True)
+    os.makedirs(f'./logs/fold{fold}',exist_ok= True)
+    utils.plot_training_metrics_complete(train_losses_per_epoch,val_losses_per_epoch,
+                                         train_accuracy_per_epoch,val_accuracy_per_epoch,f'./logs/fold{fold}')
     return best_accuracy, best_model_path
 def test_acc(model,device,test_loader):
     criterion = nn.CrossEntropyLoss()
@@ -87,7 +100,8 @@ def test_acc(model,device,test_loader):
             _, predicted = torch.max(outputs.data, 1)
             test_total += target.size(0)
             test_correct += (predicted == target).sum().item()
-            total_loss += loss.item()
+            total_loss += loss.item()*target.size(0)
+    total_loss = total_loss / test_total
     test_accuracy = 100.0 * test_correct / test_total
     return test_accuracy,total_loss
 def train_with_kfold(model_class, features, labels, num_classes, num_epochs=200, device='cuda', k=5):
@@ -119,12 +133,12 @@ def train_with_kfold(model_class, features, labels, num_classes, num_epochs=200,
         print(f"Fold [{fold + 1}] 模型参数总数: {sum(p.numel() for p in model.parameters())}")
         
         # 训练模型
-        best_accuracy, best_model_path = train_model(model, train_loader, val_loader, num_epochs=num_epochs, device=device)
+        best_accuracy, best_model_path = train_model(model, train_loader, val_loader, fold= fold+1,num_epochs=num_epochs, device=device)
         print(f"Fold [{fold + 1}] Validation Accuracy: {best_accuracy:.2f}%")
         
         # 保存模型路径
         best_models.append(best_model_path)
-        fold_accuracies.append(best_accuracy)
+        fold_accuracies.append(best_accuracy/100.0)
     
     print("\n==== 5折训练完成 ====")
     print(f"每折验证集准确率: {fold_accuracies}")
@@ -151,7 +165,7 @@ def main():
     # 6. 开启5折交叉验证
     num_classes = len(np.unique(Y))
     _, fold_accuracies = train_with_kfold(
-        model_class=MLP,  # 替换成你希望使用的模型，如MLP或Conv1DModel
+        model_class=Conv1DModel,  # 替换成你希望使用的模型，如MLP或Conv1DModel
         features=X,
         labels=Y,
         num_classes=num_classes,
@@ -159,9 +173,12 @@ def main():
         device=device,
         k=5
     )
-    
-    print(f"5折交叉验证的平均准确率: {np.mean(fold_accuracies):.4f}%")
-
+    os.makedirs('./logs/fold',exist_ok=True)
+    utils.plot_fold_accuracies(
+        fold_accuracies=fold_accuracies,
+        save_dir="./logs/fold",
+        fold_names=["Fold 1", "Fold 2", "Fold 3", "Fold 4", "Fold 5"]
+    )
     # 清理GPU缓存
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
